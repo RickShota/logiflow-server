@@ -29,3 +29,20 @@ mybatis-plus:
       logic-delete-field: deleted # 全局逻辑删除字段名
       logic-delete-value: 1       # 逻辑已删除值
       logic-not-delete-value: 0   # 逻辑未删除值
+
+# JWT 密钥
+jwt:
+  secret: logiflowSecretKeyMustBeLongEnoughForSecurityPurposes1234567890 # 密钥
+  expiration: 604800000 # Token 过期时间，单位毫秒（这里是 7 天）
+
+# 日志配置
+logging:
+  level:
+    com.rickrone.logiflow: debug # 项目代码输出 DEBUG，框架日志保持 INFO
+  file:
+    name: logs/logiflow.log # 控制台 + 文件双输出
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB # 单文件上限，超过自动切分
+      max-history: 7 # 保留天数
+      total-size-cap: 500MB # 日志目录总大小上限
