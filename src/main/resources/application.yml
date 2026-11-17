@@ -1,0 +1,31 @@
+server:
+  port: 8080 # 后端服务端口
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/logiflow_db?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: "" # 本机 root 无密码
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+# MyBatis-Plus 专属全局配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true # 开启驼峰命名自动转换 (user_id -> userId)
+  global-config:
+    db-config:
+      logic-delete-field: deleted # 全局逻辑删除字段名
+      logic-delete-value: 1       # 逻辑已删除值
+      logic-not-delete-value: 0   # 逻辑未删除值
