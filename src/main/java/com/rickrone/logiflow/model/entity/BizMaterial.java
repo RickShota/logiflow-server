@@ -2,7 +2,6 @@ package com.rickrone.logiflow.model.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
-import org.springframework.data.annotation.Version;
 
 import java.time.LocalDateTime;
 
