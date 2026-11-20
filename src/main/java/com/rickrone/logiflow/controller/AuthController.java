@@ -9,7 +9,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,7 +24,7 @@ public class AuthController {
   private final AuthenticationManager authenticationManager;
   private final JwtUtils jwtUtils;
 
-  @PatchMapping("/login")
+  @PostMapping("/login")
   public Result<Map<String, String>> login(@RequestBody @Valid LoginDTO loginDTO) {
     // 1. 使用 AuthenticationManager 进行用户认证（会自动调用 UserDetailsServiceImpl 和 BCrypt 校验密码）
     Authentication authentication = authenticationManager.authenticate(
