@@ -1,0 +1,78 @@
+# LogiFlow 项目蓝图
+
+本项目旨在把 **Spring Boot + MySQL + Redis + RabbitMQ + Docker + Spring Security** 串成一条完整的工程实践链路，并以「企业级物资与订单流转系统」为载体落地。
+
+> 公开的项目介绍、快速开始与当前进度见 [README](../README.md)；本文档记录完整的技术栈映射、业务闭环设计与实施路线，作为需求方向的依据。
+
+---
+
+## 一、核心技术栈全景映射
+
+| 架构层级 | 技术选型 | 在项目中的具体应用 |
+| --- | --- | --- |
+| **前端展现层** | Vue 2/3 + Vue Router + Pinia + Axios | 实现后台管理系统的权限路由、数据表格、动态表单与状态管理。 |
+| **安全网关层** | Spring Security + JWT + BCrypt | 实现基于 RBAC 的接口拦截、密码加密与无状态 Token 校验。 |
+| **业务逻辑层** | Spring Boot + MyBatis-Plus + AOP | 实现三层架构（Controller/Service/DAO）、`@Transactional` 事务保障。 |
+| **缓存与幂等** | Redis | 实现热点数据缓存、分布式锁以及消息重复消费的防重校验。 |
+| **异步消息层** | RabbitMQ (Direct/Topic 交换机) | 实现订单创建后的库存异步扣减、延时关单、日志异步上报。 |
+| **数据持久层** | MySQL 8.0 (InnoDB) | 存储用户、角色、物资、订单等核心业务数据（含唯一索引兜底）。 |
+| **交付运维层** | Docker + Docker Compose + Nginx | 多阶段构建前后端镜像，实现多容器一键编排与一键上线。 |
+
+---
+
+## 二、核心业务模块设计
+
+整个项目包含 4 个核心业务闭环：
+
+### 1. 用户与权限中心（Security + RBAC）
+
+* **前端**：登录页（密码加解密传输）、动态侧边栏菜单（根据后端返回的权限标识渲染）。
+* **后端**：
+  * 使用 **BCryptPasswordEncoder** 安全存储用户密码。
+  * 登录成功后签发 **JWT Token**，后续请求通过自定义过滤器拦截校验。
+  * 落地基于 **RBAC（用户-角色-权限）** 的接口权限校验（如使用 `@PreAuthorize("hasAuthority('sys:order:add')")`）。
+
+### 2. 物资与库存管理（MyBatis-Plus + DTO/VO 分层）
+
+* **前端**：物资列表的高性能表格、新增/编辑物资弹窗。
+* **后端**：
+  * 严格执行 **DTO、Entity、VO 分层规范**，使用 `@Valid` 校验入参。
+  * 利用 MyBatis-Plus 的 `LambdaQueryWrapper` 实现高效的单表分页查询与条件过滤。
+
+### 3. 核心业务：物资申领与异步下单（RabbitMQ + 事务 + 幂等）
+
+* **业务场景**：用户在前端提交一个「物资申领订单」。
+* **后端流转**：
+  1. **主流程**：Controller 接收 **DTO** ➔ Service 层开启 `@Transactional` 声明式事务，向 MySQL 插入订单记录，并往 **RabbitMQ** 发送一条异步消息：「订单已创建，请扣减库存」。
+  2. **消息中间件**：生产者发送确认 + **手动 ACK 机制**（防止消息在传输或消费中丢失）。
+  3. **消费者与幂等**：库存消费服务收到消息后，先通过 **Redis `SETNX` + 数据库唯一索引** 做双重幂等防重校验，安全扣减库存，最后执行 `channel.basicAck()`。
+
+### 4. 容器化一键部署（Docker Compose）
+
+* 将前端 Vue 打包为静态资源，挂载到 **Nginx 容器**中。
+* 将后端 Spring Boot 打包为 Jar，编写精简的 **Dockerfile（多阶段构建）**。
+* 编写 `docker-compose.yml`，一键拉起 **MySQL + Redis + RabbitMQ + Backend + Nginx Frontend** 整个微型生产环境。
+
+---
+
+## 三、四阶段落地实施路线图
+
+### 第一阶段：地基搭建与脚手架初始化
+
+* 搭建 Spring Boot 基础骨架，配置 MyBatis-Plus、MySQL 连接池。
+* 配置 Spring Security + JWT，跑通登录接口。
+
+### 第二阶段：核心 CRUD 与分层落地
+
+* 实现物资管理模块，严格规范 DTO、Entity、VO 的转换。
+* 对接前端 Vue 页面，完成前后端联调。
+
+### 第三阶段：进阶高可用（MQ 与幂等）
+
+* 引入 RabbitMQ，实现下单后的异步消息通知。
+* 编写消费者手动 ACK 逻辑，并加入 Redis 防重与数据库唯一索引。
+
+### 第四阶段：容器化打包与上线
+
+* 编写前后端 Dockerfile，测试多阶段构建。
+* 编写 `docker-compose.yml`，实现本地一键容器化运行。

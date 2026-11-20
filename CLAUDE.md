@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目定位
 
-LogiFlow 后端服务:企业级物资与订单流转系统,用于串联 Spring Boot + MySQL + Redis + RabbitMQ + Docker + Spring Security。完整蓝图(技术栈映射、4 个业务闭环、4 阶段路线图)见 `README.md`,需求方向有疑问时以它为准。
+LogiFlow 后端服务:企业级物资与订单流转系统,用于串联 Spring Boot + MySQL + Redis + RabbitMQ + Docker + Spring Security。完整蓝图(技术栈映射、4 个业务闭环、4 阶段路线图)见 `docs/BLUEPRINT.md`,需求方向有疑问时以它为准。
 
 ## 常用命令
 
@@ -41,8 +41,8 @@ mysql -uroot -h127.0.0.1 < src/main/resources/db/init.sql
 ## 技术栈要点
 
 - Java 21 + **Spring Boot 4.1.2**。注意是 Boot 4:Web starter 叫 `spring-boot-starter-webmvc`(不是 3.x 的 `spring-boot-starter-web`),Servlet 容器为 Tomcat 11。不要按 Spring Boot 3 的依赖名或 API 习惯写代码。
-- MyBatis-Plus 3.5.5,使用 `mybatis-plus-spring-boot3-starter`。
-- Spring Security 已引入但**尚未配置**:当前启动会自动生成内存用户和临时密码,所有接口被默认登录拦截。实现登录/RBAC 前需先补充 `SecurityFilterChain` 配置。
+- MyBatis-Plus 3.5.17,使用 Boot 4 专用的 `mybatis-plus-spring-boot4-starter`(3.5.5 的 boot3 starter 在 Boot 4 下自动配置不生效,会导致 Mapper 无法注册)。
+- Spring Security 已配置无状态 JWT 认证 + RBAC 权限加载(见 `SecurityConfig` / `JwtAuthenticationFilter` / `UserDetailsServiceImpl`),`/api/auth/**` 与 `/test/**` 为白名单。
 - Lombok 在 `maven-compiler-plugin` 中显式声明了注解处理器,命令行编译与 IDE 均可用。
 
 ## 代码结构与约定
