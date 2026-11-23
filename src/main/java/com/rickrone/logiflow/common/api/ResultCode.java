@@ -4,6 +4,8 @@ public enum ResultCode {
   SUCCESS(200, "操作成功"),
   FAILED(500, "系统内部异常"),
   UNAUTHORIZED(401, "暂未登录或Token已过期"),
+  LOGIN_FAILED(401, "用户名或密码错误"),
+  ACCOUNT_DISABLED(401, "账号已被禁用"),
   FORBIDDEN(403, "没有相关权限，拒绝访问"),
   VALIDATE_FAILED(400, "参数校验失败");
 

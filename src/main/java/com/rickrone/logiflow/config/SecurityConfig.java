@@ -1,6 +1,8 @@
 package com.rickrone.logiflow.config;
 
 import com.rickrone.logiflow.security.JwtAuthenticationFilter;
+import com.rickrone.logiflow.security.RestAccessDeniedHandler;
+import com.rickrone.logiflow.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +13,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -33,6 +36,8 @@ public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final UserDetailsService userDetailsService;
+  private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
+  private final RestAccessDeniedHandler restAccessDeniedHandler;
 
   /**
    * 1. 密码加密器：使用高强度的 BCrypt 算法
@@ -49,10 +54,17 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http
             // 禁用 CSRF（前后端分离项目使用 Token，不需要 CSRF 防护）
-            .csrf(csrf -> csrf.disable())
+            .csrf(AbstractHttpConfigurer::disable)
 
             // 设置 Session 策略为无状态 (Stateless)，因为我们用 JWT，不使用 HttpSession
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+            // 统一异常响应：未登录返回 401、权限不足返回 403
+            // 这类异常发生在过滤器链中，不会经过 @RestControllerAdvice，需单独配置
+            .exceptionHandling(ex -> ex
+                    .authenticationEntryPoint(restAuthenticationEntryPoint)
+                    .accessDeniedHandler(restAccessDeniedHandler)
+            )
 
             // 请求授权配置
             .authorizeHttpRequests(auth -> auth
