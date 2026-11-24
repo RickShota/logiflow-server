@@ -7,12 +7,16 @@ import com.rickrone.logiflow.mapper.BizOrderMapper;
 import com.rickrone.logiflow.mapper.SysUserMapper;
 import com.rickrone.logiflow.model.dto.OrderCreateDTO;
 import com.rickrone.logiflow.model.entity.BizMaterial;
+import com.rickrone.logiflow.model.entity.BizOrder;
 import com.rickrone.logiflow.model.entity.SysUser;
+import com.rickrone.logiflow.mq.OrderMessage;
 import com.rickrone.logiflow.mq.OrderProducer;
 import com.rickrone.logiflow.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +31,7 @@ public class OrderServiceImpl implements OrderService {
   public String submitOrder(OrderCreateDTO dto, String username) {
     // 1.查当前用户
     SysUser user = sysUserMapper.selectOne(
-            new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, username)
+        new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, username)
     );
     if (user == null) {
       throw new BusinessException("用户不存在");
@@ -41,8 +45,20 @@ public class OrderServiceImpl implements OrderService {
       throw new BusinessException("当前物资库存不足，剩余库存：" + material.getStock());
     }
     // 3.生成唯一订单号并写入初始订单（状态 0：排队处理中）
-
+    String oderNo = "LF" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    BizOrder order = new BizOrder();
+    order.setOrderNo(oderNo);
+    order.setMaterialId(material.getId());
+    order.setQuantity(dto.getQuantity());
+    order.setUserId(user.getId());
+    order.setStatus(0);
+    order.setRemark(dto.getRemark());
+    bizOrderMapper.insert(order);
     // 4.发送异步消息到 RabbitMQ 进行库存扣减
-    return "";
+    orderProducer.sendOrderCreateMessage(
+        new OrderMessage(oderNo, user.getId(), material.getId(), dto.getQuantity())
+    );
+
+    return oderNo;
   }
 }
