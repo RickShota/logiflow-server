@@ -11,12 +11,14 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat-square&logo=mysql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)
+![Spring AI](https://img.shields.io/badge/Spring_AI-2.0.3-6DB33F?style=flat-square)
+![DeepSeek](https://img.shields.io/badge/DeepSeek-API-4D6BFE?style=flat-square)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
 </div>
 
-> 🚧 **开发状态**：后端主体已完成——统一响应与全局异常、JWT + RBAC、物资管理、RabbitMQ 异步下单链路、Docker Compose 部署均已落地；Vue 3 管理后台仍在规划中，详见下方路线图。
+> 🚧 **开发状态**：后端主体已完成——统一响应与全局异常、JWT + RBAC、物资管理、RabbitMQ 异步下单链路、Spring AI 流式对话、Docker Compose 部署均已落地；Vue 3 管理后台仍在规划中，详见下方路线图。
 
 ---
 
@@ -36,6 +38,7 @@ LogiFlow（**Logi**stics + **Flow**）是一个面向企业内部的物资申领
 | 📨 可靠投递 | 消费端手动 ACK；失败重试上限 3 次，避免毒消息死循环；生产端发送失败回滚订单事务 |
 | 🧹 数据治理 | MyBatis-Plus 全局逻辑删除，查询自动过滤，避免手写 `deleted = 0` |
 | 🧩 分层规范 | Controller / Service / DAO 三层，DTO / Entity / VO 严格分离，入参 `@Valid` 校验 |
+| 🤖 AI 助手 | Spring AI 2.0 + DeepSeek（OpenAI 兼容协议），`ChatClient` SSE 流式输出 |
 | 🐳 一键部署 | 多阶段 Dockerfile + Compose 编排 MySQL / Redis / RabbitMQ / 应用 |
 
 ## 🧰 技术栈
@@ -49,10 +52,11 @@ LogiFlow（**Logi**stics + **Flow**）是一个面向企业内部的物资申领
 | 持久层 | MyBatis-Plus 3.5.17 + MySQL 8.0 | 单表 CRUD、分页、逻辑删除、乐观锁 |
 | 缓存 | Redis（Lettuce 客户端） | 幂等 SETNX、消息重试计数 |
 | 消息 | RabbitMQ + Spring AMQP | 异步扣库存；延时关单（规划） |
+| AI | Spring AI 2.0.3 + DeepSeek | `ChatClient` 流式对话，经 OpenAI 兼容协议接入 |
 | 构建 | Maven Wrapper | 无需预装 Maven，`./mvnw` 开箱即用 |
 | 部署 | Docker + Docker Compose | 多阶段构建与一键编排 |
 
-> 💡 **Spring Boot 4 小贴士**：Web starter 已更名为 `spring-boot-starter-webmvc`（3.x 中为 `spring-boot-starter-web`），Servlet 容器为 Tomcat 11；持久层需使用 `mybatis-plus-spring-boot4-starter`，旧的 boot3 starter 在 Boot 4 下不会注册 Mapper。本文档与代码均按 Boot 4 的依赖习惯编写。
+> 💡 **Spring Boot 4 小贴士**：Web starter 已更名为 `spring-boot-starter-webmvc`（3.x 中为 `spring-boot-starter-web`），Servlet 容器为 Tomcat 11；持久层需使用 `mybatis-plus-spring-boot4-starter`，旧的 boot3 starter 在 Boot 4 下不会注册 Mapper。Spring AI 需选 **2.0.x**（对应 Boot 4.1.x），1.1.x 面向 Boot 3.5，在 Boot 4 下会因 Framework 7 的 API 变化启动失败。本文档与代码均按 Boot 4 的依赖习惯编写。
 
 ## 🏗️ 系统架构
 
@@ -70,6 +74,7 @@ flowchart LR
         MAPPER["MyBatis-Plus<br/>Mapper"]
         PROD["OrderProducer"]
         CONS["OrderConsumer<br/>手动 ACK"]
+        AI["AiChatController<br/>Spring AI ChatClient"]
     end
 
     subgraph Infra["基础设施"]
@@ -78,9 +83,12 @@ flowchart LR
         BROKER[["RabbitMQ"]]
     end
 
+    LLM[["DeepSeek API<br/>（外部服务）"]]
+
     FE --> SEC
     CLI --> SEC
     SEC --> CTRL --> SVC
+    SEC --> AI --> LLM
     SVC --> MAPPER --> DB
     SVC --> PROD --> BROKER
     BROKER --> CONS
@@ -146,10 +154,12 @@ MQ 拓扑：
 前置：安装并启动 Docker Desktop。
 
 ```bash
-cp .env.example .env   # 首次执行；按需修改 MYSQL_ROOT_PASSWORD、RABBITMQ_* 与 JWT_SECRET
+cp .env.example .env   # 首次执行；按需修改 MYSQL_ROOT_PASSWORD、RABBITMQ_*、JWT_SECRET 与 AI_API_KEY
 docker compose up --build -d
 docker compose logs -f app
 ```
+
+> AI 相关变量（`AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL`）已通过 `app.environment` 注入应用容器，未设置时回退到 Compose 中的默认值。`AI_API_KEY` 留空不影响其他功能，仅 `/api/ai/**` 调用失败。
 
 启动后：
 
@@ -192,7 +202,20 @@ brew install openjdk@21 mysql redis rabbitmq
 brew services start mysql redis rabbitmq
 ```
 
-#### 1. 初始化数据库
+#### 1. 准备环境变量
+
+`JWT_SECRET` 为必填项，没有内置默认值，缺失时应用会直接启动失败。先在项目根目录准备 `.env`：
+
+```bash
+cp .env.example .env
+# 编辑 .env：
+#   JWT_SECRET  必填，用 `openssl rand -base64 48` 生成
+#   AI_API_KEY  可选，DeepSeek 控制台的 API Key；留空只影响 /api/ai/** 接口
+```
+
+`application.yml` 通过 `spring.config.import: optional:file:.env[.properties]` 自动加载项目根目录的 `.env`，本地无需手动 export；生产环境没有 `.env` 时改用系统环境变量注入。
+
+#### 2. 初始化数据库
 
 建库并创建 7 张表（RBAC 五表 + 物资表 + 订单表）：
 
@@ -200,7 +223,7 @@ brew services start mysql redis rabbitmq
 mysql -uroot -h127.0.0.1 < src/main/resources/db/init.sql
 ```
 
-#### 2. 创建本地测试账号
+#### 3. 创建本地测试账号
 
 `init.sql` 只负责建表，不包含种子数据。登录前先插入一个测试账号（账号 `admin` / 密码 `123456`）：
 
@@ -214,7 +237,7 @@ VALUES ('admin', '$2y$10$hBFLflrcjFhzHdtvfb5xMuvypW0x.Q8JpHaPcisz/3AyLaOBdZ3iK',
 
 > 未分配角色和权限时，`UserDetailsServiceImpl` 会回退到一个默认权限标识，方便本地联调；后续可自行插入 `sys_role` / `sys_permission` 等数据体验完整的 RBAC。
 
-#### 3. 配置说明
+#### 4. 配置说明
 
 默认配置位于 `src/main/resources/application.yml`，支持环境变量覆盖：
 
@@ -225,10 +248,15 @@ VALUES ('admin', '$2y$10$hBFLflrcjFhzHdtvfb5xMuvypW0x.Q8JpHaPcisz/3AyLaOBdZ3iK',
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis 地址 |
 | `RABBITMQ_HOST` / `RABBITMQ_PORT` | `localhost` / `5672` | RabbitMQ 地址 |
 | `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | `guest` / `guest` | RabbitMQ 账号 |
-| `JWT_SECRET` | 内置开发密钥 | **HS256 要求至少 32 字节，部署前务必替换** |
+| `JWT_SECRET` | **无默认值（必填）** | HS256 密钥，至少 32 字节；缺失时启动失败 |
 | `jwt.expiration`（yml 内） | `604800000` | Token 有效期，默认 7 天 |
+| `AI_API_KEY` | 空 | DeepSeek API Key；为空时仅 AI 接口调用失败，不影响其他功能 |
+| `AI_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点；Spring AI 2.0 的 base-url 需包含 `/v1` |
+| `AI_MODEL` | `deepseek-flash` | 对话模型名称 |
 
-#### 4. 启动服务
+以上变量均可写入项目根目录的 `.env`（本地启动自动加载），或通过系统环境变量注入。**密钥类配置不要写进 `application.yml`**，该文件会随代码提交。
+
+#### 5. 启动服务
 
 ```bash
 ./mvnw spring-boot:run
@@ -236,7 +264,7 @@ VALUES ('admin', '$2y$10$hBFLflrcjFhzHdtvfb5xMuvypW0x.Q8JpHaPcisz/3AyLaOBdZ3iK',
 
 服务默认监听 <http://localhost:8080>。首次启动前请确保 MySQL、Redis、RabbitMQ 均已运行，否则 Spring 上下文初始化会因连接失败而退出。
 
-#### 5. 验证登录
+#### 6. 验证登录
 
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
@@ -265,7 +293,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ```bash
 ./mvnw compile   # 编译
-./mvnw test      # 运行测试（需三个中间件在线）
+./mvnw test      # 运行测试（需三个中间件在线，且已配置 .env）
 ./mvnw package   # 打包到 target/logiflow-0.0.1-SNAPSHOT.jar
 ```
 
@@ -282,6 +310,7 @@ Authorization: Bearer <JWT_TOKEN>
 | `PUT` | `/api/materials/edit` | 修改物资（乐观锁） | JWT |
 | `DELETE` | `/api/materials/{id}` | 逻辑删除物资 | JWT |
 | `POST` | `/api/orders` | 提交申领单，异步扣库存 | JWT + `sys:order:add` |
+| `GET` | `/api/ai/chat/stream` | SSE 流式 AI 对话（`message` 参数） | JWT |
 | `GET` | `/test/hello?name=LogiFlow` | 连通性测试 | 白名单 |
 | `GET` | `/test/biz-error` | 业务异常处理演示 | 白名单 |
 | `GET` | `/test/sys-error` | 系统异常兜底演示 | 白名单 |
@@ -312,6 +341,8 @@ Authorization: Bearer <JWT_TOKEN>
 错误统一由 `GlobalExceptionHandler` 捕获：业务异常、`@Valid` 参数校验失败、认证失败、权限不足、系统未知异常各走各的处理分支，不会把堆栈直接暴露给前端。
 
 > 注意：业务异常（如库存不足、物资不存在）返回 **HTTP 200**，业务码在响应体 `code` 中；未登录由 Security 过滤器直接返回 **HTTP 401**。
+
+> 例外：`GET /api/ai/chat/stream` 是 SSE 流式接口，按 `text/event-stream` 直接推送文本片段，不包装为 `Result`。
 
 ## 🔐 认证与权限
 
@@ -384,7 +415,7 @@ logiflow-server
 │   │   ├── exception    # BusinessException + 全局异常处理
 │   │   └── utils        # JwtUtils 签发 / 解析 / 校验
 │   ├── config           # SecurityConfig、RabbitMQConfig、MyBatis-Plus 配置
-│   ├── controller       # 认证、物资、订单、联调接口
+│   ├── controller       # 认证、物资、订单、AI 对话、联调接口
 │   ├── mq               # OrderProducer / OrderConsumer / OrderMessage
 │   ├── security         # JWT 过滤器、UserDetailsServiceImpl、401/403 处理器
 │   ├── service          # 业务接口与实现（物资 / 订单）
@@ -394,12 +425,12 @@ logiflow-server
 │       ├── entity       # SysUser / BizMaterial / BizOrder
 │       └── vo           # MaterialVO 等出参对象
 ├── src/main/resources
-│   ├── application.yml  # 数据源、Redis、RabbitMQ、JWT 配置（支持环境变量覆盖）
+│   ├── application.yml  # 数据源、Redis、RabbitMQ、JWT、AI 配置（支持环境变量覆盖，自动加载 .env）
 │   └── db/init.sql      # 建库 + 7 张表
 ├── docs/BLUEPRINT.md    # 项目蓝图与实施路线
 ├── Dockerfile           # 多阶段构建（Maven 构建 + JRE 运行）
 ├── docker-compose.yml   # MySQL / Redis / RabbitMQ / 应用一键编排
-├── .env.example         # Compose 环境变量模板
+├── .env.example         # 环境变量模板（复制为 .env，已被 gitignore）
 ├── .dockerignore
 ├── pom.xml
 └── mvnw / mvnw.cmd
@@ -441,6 +472,13 @@ logiflow-server
 - [x] Docker Compose 编排 MySQL / Redis / RabbitMQ / Backend
 - [ ] Vue 3 管理后台：登录、物资、订单页面
 - [ ] Nginx 部署前端静态资源
+
+### 🚧 Phase 5 · AI 助手（进行中）
+
+- [x] 接入 Spring AI 2.0.3（OpenAI 兼容协议）与 DeepSeek
+- [x] SSE 流式对话接口 `/api/ai/chat/stream`
+- [ ] 对话记忆与多轮会话
+- [ ] 基于物资 / 订单数据的工具调用（Function Calling）
 
 ## 🤝 贡献
 
