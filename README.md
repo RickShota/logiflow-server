@@ -18,7 +18,7 @@
 
 </div>
 
-> 🚧 **开发状态**：后端主体已完成——统一响应与全局异常、JWT + RBAC、物资管理、RabbitMQ 异步下单链路、Spring AI 流式对话、Docker Compose 部署均已落地；Vue 3 管理后台仍在规划中，详见下方路线图。
+> 🚧 **开发状态**：后端主体已完成——统一响应与全局异常、JWT + RBAC、物资管理、RabbitMQ 异步下单链路、Spring AI 流式对话、Docker Compose 部署均已落地；Vue 3 + Naive UI 管理后台脚手架（`frontend/`）已就绪，业务页面开发中，详见下方路线图。
 
 ---
 
@@ -48,6 +48,7 @@ LogiFlow（**Logi**stics + **Flow**）是一个面向企业内部的物资申领
 | 语言与运行时 | Java 21 | 主语言，使用文本块等新语法 |
 | 应用框架 | Spring Boot 4.1.2 | 自动配置、内嵌 Tomcat 11 |
 | Web 层 | Spring WebMVC | RESTful API、参数绑定与校验 |
+| 前端 | Vue 3 + TypeScript + Vite 8 + Naive UI | 管理后台（`frontend/`），组件按需自动导入 |
 | 安全 | Spring Security + JJWT 0.11.5 | 无状态认证、BCrypt 密码加密、RBAC 鉴权 |
 | 持久层 | MyBatis-Plus 3.5.17 + MySQL 8.0 | 单表 CRUD、分页、逻辑删除、乐观锁 |
 | 缓存 | Redis（Lettuce 客户端） | 幂等 SETNX、消息重试计数 |
@@ -63,7 +64,7 @@ LogiFlow（**Logi**stics + **Flow**）是一个面向企业内部的物资申领
 ```mermaid
 flowchart LR
     subgraph Client["客户端"]
-        FE["Vue 3 管理后台<br/>（规划中）"]
+        FE["Vue 3 管理后台<br/>（脚手架已就绪）"]
         CLI["curl / Postman"]
     end
 
@@ -289,12 +290,30 @@ curl -X POST http://localhost:8080/api/auth/login \
 Authorization: Bearer <JWT_TOKEN>
 ```
 
+#### 7. 启动前端（开发模式）
+
+前端位于 `frontend/`，需要 Node.js 22.18+ 或 24+：
+
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:5173，/api 代理到后端 8080
+```
+
 #### 常用命令
 
 ```bash
 ./mvnw compile   # 编译
 ./mvnw test      # 运行测试（需三个中间件在线，且已配置 .env）
 ./mvnw package   # 打包到 target/logiflow-0.0.1-SNAPSHOT.jar
+```
+
+前端常用命令（在 `frontend/` 下执行）：
+
+```bash
+npm run dev     # 开发服务器
+npm run build   # 类型检查 + 生产构建
+npm run lint    # ESLint + oxlint
 ```
 
 ## 📡 接口与响应
@@ -408,7 +427,13 @@ stateDiagram-v2
 ## 📁 项目结构
 
 ```text
-logiflow-server
+logiflow
+├── frontend/            # Vue 3 + TypeScript + Vite + Naive UI 管理后台
+│   ├── src/
+│   │   ├── router/      # 路由配置
+│   │   ├── stores/      # Pinia 状态
+│   │   └── views/       # 页面组件
+│   └── vite.config.ts   # 开发代理：/api -> localhost:8080
 ├── src/main/java/com/rickrone/logiflow
 │   ├── common
 │   │   ├── api          # Result / ResultCode 统一响应契约
@@ -470,6 +495,7 @@ logiflow-server
 
 - [x] 后端多阶段构建 Dockerfile
 - [x] Docker Compose 编排 MySQL / Redis / RabbitMQ / Backend
+- [x] Vue 3 + Naive UI 脚手架（`frontend/`，Vite 代理已配置）
 - [ ] Vue 3 管理后台：登录、物资、订单页面
 - [ ] Nginx 部署前端静态资源
 

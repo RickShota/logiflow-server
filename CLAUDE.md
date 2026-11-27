@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目定位
 
-LogiFlow 后端服务:企业级物资与订单流转系统,用于串联 Spring Boot + MySQL + Redis + RabbitMQ + Docker + Spring Security。完整蓝图(技术栈映射、4 个业务闭环、4 阶段路线图)见 `docs/BLUEPRINT.md`,需求方向有疑问时以它为准。
+LogiFlow:企业级物资与订单流转系统,后端串联 Spring Boot + MySQL + Redis + RabbitMQ + Docker + Spring Security,前端管理后台位于 `frontend/`(Vue 3 + TypeScript + Vite + Naive UI)。完整蓝图(技术栈映射、4 个业务闭环、4 阶段路线图)见 `docs/BLUEPRINT.md`,需求方向有疑问时以它为准。
 
 ## 常用命令
 
@@ -18,6 +18,14 @@ LogiFlow 后端服务:企业级物资与订单流转系统,用于串联 Spring B
 ./mvnw test                     # 全部测试
 ./mvnw test -Dtest=LogiflowServerApplicationTests#contextLoads  # 单个测试
 ./mvnw package                  # 打包到 target/logiflow-0.0.1-SNAPSHOT.jar
+```
+
+前端(在 `frontend/` 下执行):
+
+```bash
+npm install                     # 安装依赖
+npm run dev                     # 开发服务器 5173,`/api` 代理到 8080
+npm run build                   # 类型检查 + 生产构建
 ```
 
 数据库初始化(建库 + 7 张表):
@@ -44,6 +52,7 @@ mysql -uroot -h127.0.0.1 < src/main/resources/db/init.sql
 - MyBatis-Plus 3.5.17,使用 Boot 4 专用的 `mybatis-plus-spring-boot4-starter`(3.5.5 的 boot3 starter 在 Boot 4 下自动配置不生效,会导致 Mapper 无法注册)。
 - Spring Security 已配置无状态 JWT 认证 + RBAC 权限加载(见 `SecurityConfig` / `JwtAuthenticationFilter` / `UserDetailsServiceImpl`),`/api/auth/**` 与 `/test/**` 为白名单。
 - Lombok 在 `maven-compiler-plugin` 中显式声明了注解处理器,命令行编译与 IDE 均可用。
+- 前端 `frontend/`:Vue 3 + TypeScript + Vite 8 + Naive UI,组件经 `unplugin-vue-components` 按需自动导入;开发代理在 `vite.config.ts`(将 `/api` 转发到 `localhost:8080`),尚未接入 Nginx 与 Compose 前端服务。
 
 ## 代码结构与约定
 

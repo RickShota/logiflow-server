@@ -15,8 +15,8 @@
   <groupId>com.rickrone</groupId>
   <artifactId>logiflow</artifactId>
   <version>0.0.1-SNAPSHOT</version> <!-- SNAPSHOT 表示开发中的快照版本，每次构建可覆盖发布 -->
-  <name>logiflow-server</name>
-  <description>logiflow-server</description>
+  <name>logiflow</name>
+  <description>LogiFlow 企业级物资与订单流转系统</description>
 
   <!-- 以下四项为 Spring Initializr 生成的空占位，工程信息完善后再补（如开源协议、作者、SCM 地址） -->
   <url/>
