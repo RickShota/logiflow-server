@@ -2,6 +2,11 @@ server:
   port: 8080 # 后端服务端口
 
 spring:
+  # 本地开发：自动加载项目根目录的 .env（已 gitignore）；
+  # 生产环境不存在该文件时直接忽略，改用系统环境变量注入
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/logiflow_db?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia/Shanghai
     username: ${DB_USERNAME:root}
@@ -11,6 +16,18 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+
+  # AI：DeepSeek 通过 OpenAI 兼容协议接入，因此使用 openai starter
+  ai:
+    openai:
+      api-key: ${AI_API_KEY:} # 密钥只放 .env / 环境变量，禁止写入本文件
+      # Spring AI 2.0 改用 openai-java SDK，base-url 必须包含 /v1（默认值即 https://api.openai.com/v1）；
+      # 1.x 时代 base-url 不含 /v1，从 1.x 升级时这里最容易配错
+      base-url: ${AI_BASE_URL:https://api.deepseek.com/v1}
+      chat:
+        # 2.0 起 options.* 已拍平为 chat.*；旧写法 spring.ai.openai.chat.options.model 已标记废弃
+        model: ${AI_MODEL:deepseek-flash}
+        temperature: 0.7 # 采样温度 0~2，越高越发散，0.7 适合日常对话
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
@@ -35,7 +52,7 @@ mybatis-plus:
 
 # JWT 密钥
 jwt:
-  secret: ${JWT_SECRET:logiflow-local-dev-secret-change-me-0123456789} # 生产环境请通过环境变量 JWT_SECRET 注入
+  secret: ${JWT_SECRET} # 必填：仅从 .env / 环境变量注入，缺失时启动失败
   expiration: 604800000 # Token 过期时间，单位毫秒（这里是 7 天）
 
 # 日志配置

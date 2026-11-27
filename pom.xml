@@ -2,17 +2,23 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
+  <!-- 继承 Spring Boot 父 POM：统一托管 Spring 生态各依赖的版本，子 POM 里无需再写版本号 -->
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>4.1.2</version>
-    <relativePath/> <!-- lookup parent from repository -->
+    <relativePath/> <!-- 留空表示跳过本地目录查找，直接从远程仓库解析父 POM -->
   </parent>
+
+  <!-- 本项目坐标：groupId 取反写域名，artifactId 为工程名 -->
   <groupId>com.rickrone</groupId>
   <artifactId>logiflow</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.1-SNAPSHOT</version> <!-- SNAPSHOT 表示开发中的快照版本，每次构建可覆盖发布 -->
   <name>logiflow-server</name>
   <description>logiflow-server</description>
+
+  <!-- 以下四项为 Spring Initializr 生成的空占位，工程信息完善后再补（如开源协议、作者、SCM 地址） -->
   <url/>
   <licenses>
     <license/>
@@ -26,34 +32,64 @@
     <tag/>
     <url/>
   </scm>
+
   <properties>
+    <!-- 编译与运行使用的 JDK 版本，父 POM 会据此设置 maven.compiler.source/target -->
     <java.version>21</java.version>
   </properties>
+
+  <!-- Spring AI BOM：统一管理 Spring AI 各模块版本
+       版本对应关系（官方兼容矩阵）：2.0.x → Boot 4.1.x，2.1.x → Boot 4.2.x，1.1.x → Boot 3.5.x
+       本项目为 Boot 4.1.2，必须用 2.0.x；1.1.x 在 Framework 7 下会因 HttpHeaders API 变化而启动失败 -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-bom</artifactId>
+        <version>2.0.3</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
-    <!-- MyBatis-Plus 核心依赖（Spring Boot 4 专用 starter） -->
+    <!-- Spring AI OpenAI 兼容模型 Starter -->
+    <dependency>
+      <groupId>org.springframework.ai</groupId>
+      <artifactId>spring-ai-starter-model-openai</artifactId>
+    </dependency>
+
+    <!-- MyBatis-Plus 核心依赖（Spring Boot 4 专用 starter）
+         Boot 4 下必须用这个 boot4 starter，用 3.x 的 boot3 starter 自动配置不会生效，Mapper 无法注册 -->
     <dependency>
       <groupId>com.baomidou</groupId>
       <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
-      <version>3.5.17</version>
+      <version>3.5.17</version> <!-- 版本不受 Boot 父 POM 管理，需显式指定 -->
     </dependency>
-    <!-- 分页插件依赖：3.5.9+ 起从核心包拆出，需显式引入 -->
+    <!-- 分页插件依赖：3.5.9+ 起从核心包拆出，需显式引入，否则 PaginationInnerInterceptor 会报 ClassNotFound -->
     <dependency>
       <groupId>com.baomidou</groupId>
       <artifactId>mybatis-plus-jsqlparser</artifactId>
       <version>3.5.17</version>
     </dependency>
+    <!-- RabbitMQ 客户端：提供 RabbitTemplate 生产消息、@RabbitListener 消费消息 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-amqp</artifactId>
     </dependency>
+    <!-- Redis 客户端：底层为 Lettuce，用于缓存与 MQ 消费幂等的 SETNX 去重标记 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
+    <!-- Spring Security：无状态 JWT 认证 + RBAC 权限控制的基础，SecurityFilterChain 等均来自这里 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
+    <!-- Web MVC 核心：Boot 4 中已由 spring-boot-starter-web 改名为 spring-boot-starter-webmvc（Servlet 容器为 Tomcat 11），
+         提供 Controller、JSON 序列化、内嵌 Tomcat 等 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
@@ -63,45 +99,56 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
-
+    <!-- MySQL 驱动：仅运行期需要（编译期按 JDBC 接口编程，不直接引用驱动类），故 scope 为 runtime -->
     <dependency>
       <groupId>com.mysql</groupId>
       <artifactId>mysql-connector-j</artifactId>
       <scope>runtime</scope>
     </dependency>
-    <!-- Netty macOS DNS 解析器：消除 Lettuce 在 Apple Silicon 上的回退警告 -->
+    <!-- Netty macOS DNS 解析器：消除 Lettuce 在 Apple Silicon 上的回退警告，
+         仅本机开发需要；部署到 Linux 服务器时这段 warning 不存在，可考虑用 profile 隔离 -->
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-resolver-dns-native-macos</artifactId>
       <classifier>osx-aarch_64</classifier>
       <scope>runtime</scope>
     </dependency>
+    <!-- Lombok：编译期生成 getter/setter/构造器等，optional=true 表示不传递给依赖本项目的其他模块 -->
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <optional>true</optional>
     </dependency>
+
+    <!-- 以下为测试依赖（scope=test，仅测试编译与运行可见）：
+         Boot 4 将测试能力按模块拆分成独立的 starter，按需引入对应模块的 test starter -->
+    <!-- MQ 测试支持：@RabbitListenerTest、RabbitTemplate 的 mock 等 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-amqp-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Redis 测试支持：嵌入式/容器化 Redis 及 RedisTemplate 断言工具 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Security 测试支持：@WithMockUser、SecurityMockMvcRequestPostProcessors 等 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Web MVC 测试支持：MockMvc、@WebMvcTest 等 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc-test</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- JJWT 核心依赖 -->
+
+    <!-- JJWT 三件套（版本 0.11.5，未受 Boot 父 POM 管理）
+         职责拆分：api 是编译期接口；impl 是运行期实现；jackson 负责 JWT 载荷的 JSON 序列化 -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>
       <artifactId>jjwt-api</artifactId>
@@ -111,7 +158,7 @@
       <groupId>io.jsonwebtoken</groupId>
       <artifactId>jjwt-impl</artifactId>
       <version>0.11.5</version>
-      <scope>runtime</scope>
+      <scope>runtime</scope> <!-- 只在运行期参与，故设为 runtime，避免业务代码误依赖内部实现 -->
     </dependency>
     <dependency>
       <groupId>io.jsonwebtoken</groupId>
@@ -119,6 +166,8 @@
       <version>0.11.5</version>
       <scope>runtime</scope>
     </dependency>
+
+    <!-- Actuator：暴露 /actuator/health 等运维端点，供 Docker healthcheck 与监控探活使用 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
@@ -127,14 +176,18 @@
 
   <build>
     <plugins>
+      <!-- Spring Boot 打包插件：把依赖一并打入 fat jar，生成可直接 java -jar 运行的可执行包 -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <!-- 编译插件：显式声明 Lombok 注解处理器，
+           保证命令行 mvn compile 与 IDE 两种环境下都能正常编译（IDE 未开启注解处理时的兜底） -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <executions>
+          <!-- 主代码编译阶段 -->
           <execution>
             <id>default-compile</id>
             <phase>compile</phase>
@@ -150,6 +203,7 @@
               </annotationProcessorPaths>
             </configuration>
           </execution>
+          <!-- 测试代码编译阶段，同样需要 Lombok 处理器 -->
           <execution>
             <id>default-testCompile</id>
             <phase>test-compile</phase>
